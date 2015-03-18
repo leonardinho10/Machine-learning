@@ -1,0 +1,76 @@
+# Machine Learning Assignment with the Weight Lifting Exercise Dataset
+
+##Overview
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, the goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. And with that, we will predict the manner in which they do the exercises.
+
+# Data preparation
+We read the data into R and realise that some features are filled with missing values. While it is difficult to determine which features are important, we can safely eliminate those features filled with NA or are missing. 
+
+```{r, echo=FALSE}
+traindata=read.csv("pml-training.csv", na.strings=c("NA"," "))
+testdata=read.csv("pml-testing.csv", na.strings=c("NA"," "))
+
+str(traindata)
+
+
+nafeatures1=colSums(is.na(traindata))==19216
+traindata=traindata[!nafeatures1]
+testdata=testdata[!nafeatures1]
+nafeatures2=colSums(is.na(testdata))==20
+traindata=traindata[!nafeatures2]
+testdata=testdata[!nafeatures2]
+
+
+
+traindata=traindata[,-c(5,6)]
+testdata=testdata[,-c(5,6)]
+```
+
+# Building the model
+
+```{r, cache=TRUE}
+library(caret)
+library(randomForest)
+```
+In this project, we do a simplistic two fold cross-validation, by first randomly training a model on half of the training set, and assessing the performance on the other half. When this is done, we do it for the other half.
+
+```{r, cache=TRUE}
+set.seed(1)
+cvfolds <- createDataPartition(y=traindata$classe, p=0.5, list=FALSE)
+fold1 <- traindata[cvfolds,]
+fold2 <- traindata[-cvfolds,]
+```
+
+We decided to use the Random Forest technique as a model.
+```{r, cache=TRUE}
+rfmodel1 <- randomForest(classe~., data=fold1)
+confusionMatrix(predict(rfmodel1, fold2), fold2$classe)
+```
+Looking at the kappa statistic in the above matrix, the expected out of sample error for the first fold is 0.01%.
+
+We do this with the second fold as a means to cross validate our findings.
+```{r, cache=TRUE}
+rfmodel2 <- randomForest(classe~., data=fold2)
+confusionMatrix(predict(rfmodel2, fold1), fold1$classe)
+```
+This time round, the kappa statistic shows that the expected out of sample error is 0.04% which is consistent with the out of sample error we had earlier.
+This proves that the random forest model is a suitable model for predicting classe and we develop the final model with the whole training set in it.
+```{r, cache=TRUE}
+rfmodelfinal <- randomForest(classe~., data=traindata)
+```
+
+# Test set
+
+Following the instructions from the website, we predict the classes of the test set and save it in individual text files.
+
+```{r, cache=TRUE}
+answers <- as.character(predict(rfmodelfinal, testdata))
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(answers)
+```
